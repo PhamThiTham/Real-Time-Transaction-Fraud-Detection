@@ -1,0 +1,33 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+develop-eggs/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Environments / secrets
+.env
+.env.*
+*.pem
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
