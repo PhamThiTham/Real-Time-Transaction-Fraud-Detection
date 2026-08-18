@@ -32,8 +32,39 @@ services:
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
 
 
+  postgres:
+    image: postgres:16
+    container_name: postgres
+
+    environment:
+      POSTGRES_DB: fraud_detection
+      POSTGRES_USER: fraud
+      POSTGRES_PASSWORD: fraud123
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U fraud -d fraud_detection"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
   spark:
-    image: apache/spark:4.0.1
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+
+    image: realtime-fraud-spark:4.0.1
+
     container_name: spark
 
     command: >
@@ -41,6 +72,17 @@ services:
 
     volumes:
       - ./spark:/opt/spark-apps
+      - ./spark-data:/opt/spark-data
+      - ./model:/opt/spark-models:ro
 
     depends_on:
-      - kafka
+      kafka:
+        condition: service_started
+
+      postgres:
+        condition: service_healthy
+
+
+volumes:
+
+  postgres-data:

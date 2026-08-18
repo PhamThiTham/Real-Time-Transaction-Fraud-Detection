@@ -1,0 +1,59 @@
+{
+    "evaluation_timestamp": "2026-08-18T04:55:12.372986+00:00",
+    "database": "fraud_detection",
+    "table": "fraud_predictions",
+    "summary": {
+        "total_transactions": 185,
+        "actual_fraud": 10,
+        "actual_legitimate": 175,
+        "predicted_fraud": 81,
+        "predicted_legitimate": 104
+    },
+    "confusion_matrix": {
+        "tn": 100,
+        "fp": 75,
+        "fn": 4,
+        "tp": 6
+    },
+    "classification_metrics": {
+        "accuracy": 0.572972972972973,
+        "precision": 0.07407407407407407,
+        "recall": 0.6,
+        "f1_score": 0.13186813186813187,
+        "fpr": 0.42857142857142855
+    },
+    "probability_metrics": {
+        "roc_auc": 0.658,
+        "average_precision": 0.08197214430577404
+    },
+    "prediction_latency": {
+        "samples": 185,
+        "average_ms": 40.58378378378379,
+        "p50_ms": 16.0,
+        "p95_ms": 172.80000000000018,
+        "p99_ms": 223.79999999999998,
+        "min_ms": 1.0,
+        "max_ms": 427.0
+    },
+    "end_to_end_latency": {
+        "samples": 185,
+        "average_ms": 22232.529,
+        "p50_ms": 17320.964,
+        "p95_ms": 50655.41420000003,
+        "p99_ms": 67063.49551999998,
+        "min_ms": 9071.583999999999,
+        "max_ms": 70949.37299999999
+    },
+    "throughput": {
+        "measurement_start": "2026-08-18T04:47:26.501781+00:00",
+        "measurement_end": "2026-08-18T04:53:54.133000+00:00",
+        "duration_seconds": 387.631219,
+        "transactions": 185,
+        "transactions_per_sec": 0.47725774120375997
+    },
+    "card_precision_at_k": {
+        "number_of_customers": 5,
+        "precision_at_5": 1.0,
+        "precision_at_10": null
+    }
+}
