@@ -1,7 +1,7 @@
 # Real-time Fraud Detection helper files
 
 Files:
-- `start_realtime.bat`: opens the 5 pipeline stages in separate Windows terminals.
+- `start_realtime.bat`: opens the 6 pipeline stages in separate Windows terminals.
 - `stop_realtime.bat`: stops the producer and Spark streaming jobs without deleting data.
 - `Dockerfile`: custom Spark image definition.
 
@@ -78,6 +78,12 @@ docker exec -it spark /opt/spark/bin/spark-submit --conf spark.jars.ivy=/tmp/.iv
 
 cd /d D:\ThucTap_VinSmartFuture\run_realtime\producer
 
-python transaction_producer.py
+chạy run_1_banchmark thì sử dụng: python transaction_producer.py
+
+chạy so sánh nhiều banchmark:
+python transaction_producer.py --rate 10 --limit 100000 --print-every 1000
+python transaction_producer.py --rate 50 --limit 100000 --print-every 1000
+python transaction_producer.py --rate 100 --limit 100000 --print-every 1000
+python transaction_producer.py --rate 500 --limit 100000 --print-every 1000
 
 

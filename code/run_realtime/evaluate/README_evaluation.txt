@@ -10,3 +10,9 @@ python monitor_resources.py --duration 300 --interval 1
 Trong đó:
 --duration 300 = theo dõi 300 giây = 5 phút
 --interval 1 = lấy mẫu mỗi 1 giây
+
+
+
+2. Sau khi các quá trình chạy xong "PostgreSQL Sink" thì chạy 
+
+python evaluate_realtime.py
