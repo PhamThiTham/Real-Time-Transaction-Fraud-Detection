@@ -117,6 +117,8 @@ KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
 
 KAFKA_TOPIC = "transactions"
 
+END_MARKER = "__END_OF_STREAM__"
+
 SUPPORTED_RATES = [
     10,
     50,
@@ -947,6 +949,7 @@ def replay_once(
                 future = producer.send(
                     topic,
                     value=message,
+                    partition=0,
                 )
 
             sent += 1
@@ -1319,6 +1322,8 @@ def main():
 
         cycle = 0
 
+        total_sent = 0
+
         while True:
 
             cycle += 1
@@ -1339,6 +1344,8 @@ def main():
                 dry_run=args.dry_run,
                 print_every=args.print_every,
             )
+
+            total_sent += sent
 
             if not args.loop:
 
@@ -1365,6 +1372,29 @@ def main():
                 "Restarting from "
                 "2018-10-01..."
             )
+
+        # ====================================================
+        # NORMAL COMPLETION
+        # ====================================================
+
+        print()
+        print("=" * 80)
+        print("[COMPLETED] PRODUCER")
+        print(
+            f"  Total transactions sent: "
+            f"{total_sent}"
+        )
+        print(
+            f"  Topic              : "
+            f"{args.topic}"
+        )
+        print("=" * 80)
+
+        send_end_marker(
+            producer,
+            args.topic,
+            args.bootstrap
+        )
 
     except KeyboardInterrupt:
 
@@ -1405,6 +1435,65 @@ def main():
         print()
         print(
             "Replay Producer stopped."
+        )
+
+
+# ============================================================
+# END MARKER
+# ============================================================
+
+def send_end_marker(
+    producer,
+    topic,
+    bootstrap_servers
+):
+    """
+    Send a special END_OF_STREAM marker message to Kafka so
+    that downstream Spark jobs can detect completion.
+    """
+
+    if producer is None:
+
+        print(
+            "SKIP END MARKER "
+            "(dry run / no producer)."
+        )
+
+        return
+
+    try:
+
+        marker_producer = KafkaProducer(
+            bootstrap_servers=bootstrap_servers,
+            acks="all",
+            retries=5,
+        )
+
+        marker_producer.send(
+            topic,
+            value=END_MARKER.encode("utf-8"),
+            key="__END__".encode("utf-8"),
+        )
+
+        marker_producer.flush()
+
+        marker_producer.close()
+
+        print()
+        print("=" * 80)
+        print("[COMPLETED] PRODUCER")
+        print(
+            f"  Sent END MARKER "
+            f"({END_MARKER}) "
+            f"to topic: {topic}"
+        )
+        print("=" * 80)
+
+    except Exception as exc:
+
+        print(
+            "WARNING: Cannot send "
+            f"END marker: {exc}"
         )
 
 

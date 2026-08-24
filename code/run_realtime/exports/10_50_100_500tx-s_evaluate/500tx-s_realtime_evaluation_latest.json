@@ -1,0 +1,62 @@
+{
+    "evaluation_timestamp": "2026-08-21T09:10:39.035732+00:00",
+    "database": "fraud_detection",
+    "table": "fraud_predictions",
+    "summary": {
+        "total_transactions": 500000,
+        "actual_fraud": 3592,
+        "actual_legitimate": 496408,
+        "predicted_fraud": 2425,
+        "predicted_legitimate": 497575
+    },
+    "confusion_matrix": {
+        "tn": 496252,
+        "fp": 156,
+        "fn": 1323,
+        "tp": 2269
+    },
+    "classification_metrics": {
+        "accuracy": 0.997042,
+        "precision": 0.9356701030927835,
+        "recall": 0.6316815144766147,
+        "f1_score": 0.7541964434103374,
+        "fpr": 0.0003142576267908656
+    },
+    "probability_metrics": {
+        "roc_auc": 0.971992653519095,
+        "average_precision": 0.8057306203253071,
+        "pr_curve_points": 475216,
+        "pr_curve_file": "D:\\ThucTap_VinSmartFuture\\run_realtime\\evaluate\\evaluation_results\\precision_recall_curve.png"
+    },
+    "prediction_latency": {
+        "samples": 500000,
+        "average_ms": 5329.144902,
+        "p50_ms": 4671.0,
+        "p95_ms": 9884.0,
+        "p99_ms": 9884.0,
+        "min_ms": 142.0,
+        "max_ms": 9884.0
+    },
+    "end_to_end_latency": {
+        "samples": 500000,
+        "average_ms": 416442.843672912,
+        "p50_ms": 372602.64300000004,
+        "p95_ms": 625584.45765,
+        "p99_ms": 649156.74646,
+        "min_ms": 187913.80899999998,
+        "max_ms": 659550.78
+    },
+    "throughput": {
+        "measurement_start": "2026-08-21T08:41:22.658450+00:00",
+        "measurement_end": "2026-08-21T09:08:22.558000+00:00",
+        "duration_seconds": 1619.89955,
+        "transactions": 500000,
+        "transactions_per_sec": 308.66111420303804
+    },
+    "precision_top_k": {
+        "total_transactions": 500000,
+        "precision_at_50": 1.0,
+        "precision_at_100": 1.0,
+        "precision_at_200": 1.0
+    }
+}

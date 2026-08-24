@@ -41,6 +41,9 @@
 # ============================================================
 
 
+import time
+
+
 from pyspark.sql import SparkSession
 
 from pyspark.sql.functions import (
@@ -83,6 +86,36 @@ POSTGRES_USER = "fraud"
 POSTGRES_PASSWORD = "fraud123"
 
 POSTGRES_DRIVER = "org.postgresql.Driver"
+
+
+# ============================================================
+# RUN CONTROL
+# ============================================================
+#
+# VERBOSE      : if False, per-transaction debug prints are hidden.
+# END_MARKER   : special Kafka message that signals completion.
+# END_RECEIVED : set to True when this stage receives the marker.
+#
+# ============================================================
+
+VERBOSE = False
+
+END_MARKER = "__END_OF_STREAM__"
+
+END_RECEIVED = False
+
+
+def log(
+    *args,
+    **kwargs
+):
+
+    if VERBOSE:
+
+        print(
+            *args,
+            **kwargs
+        )
 
 
 # ============================================================
@@ -259,12 +292,12 @@ raw_stream = (
 
     .option(
         "startingOffsets",
-        "latest"
+        "earliest"
     )
 
     .option(
         "failOnDataLoss",
-        "false"
+        "true"
     )
 
     .load()
@@ -281,6 +314,8 @@ parsed_stream = (
 
     .select(
 
+        col("value").cast("string").alias("_RAW_VALUE"),
+
         from_json(
 
             col("value").cast("string"),
@@ -292,6 +327,7 @@ parsed_stream = (
     )
 
     .select(
+        "_RAW_VALUE",
         "data.*"
     )
 )
@@ -332,6 +368,8 @@ def write_batch(
     batch_id
 ):
 
+    global END_RECEIVED
+
     print()
     print("=" * 100)
 
@@ -340,6 +378,22 @@ def write_batch(
     )
 
     print("=" * 100)
+
+    # --------------------------------------------------------
+    # END MARKER DETECTION
+    # --------------------------------------------------------
+
+    end_marker_present = (
+        batch_df
+        .filter(
+            col("_RAW_VALUE") == END_MARKER
+        )
+        .count()
+    ) > 0
+
+    batch_df = batch_df.filter(
+        col("_RAW_VALUE") != END_MARKER
+    )
 
     # --------------------------------------------------------
     # COUNT
@@ -617,6 +671,21 @@ def write_batch(
 
         )
 
+        # ----------------------------------------------------
+        # SORT BY TX_DATETIME
+        # ----------------------------------------------------
+        # orderBy sorts the whole micro-batch by transaction
+        # datetime; coalesce(1) collapses to a single partition
+        # so the JDBC writer inserts rows sequentially through
+        # one connection, preserving the order in PostgreSQL.
+        # ----------------------------------------------------
+
+        .orderBy(
+            "TX_DATETIME"
+        )
+
+        .coalesce(1)
+
         .write
 
         .format("jdbc")
@@ -676,7 +745,27 @@ def write_batch(
         f"TO POSTGRESQL"
     )
 
+    print()
     print("=" * 100)
+    print(
+        f"[BATCH DONE] "
+        f"POSTGRES_SINK - batch {batch_id}: "
+        f"wrote {row_count} rows -> "
+        f"{POSTGRES_TABLE}"
+    )
+    print("=" * 100)
+
+    if end_marker_present:
+
+        print()
+        print("=" * 100)
+        print(
+            "[ALL DONE] "
+            "POSTGRES_SINK"
+        )
+        print("=" * 100)
+
+        END_RECEIVED = True
 
 
 # ============================================================
@@ -711,4 +800,37 @@ query = (
 # WAIT
 # ============================================================
 
-query.awaitTermination()
+# ============================================================
+# WAIT FOR END MARKER / COMPLETION
+# ============================================================
+
+print()
+print("=" * 100)
+
+print(
+    "[READY] POSTGRES_SINK - "
+    f"listening to topic '{KAFKA_TOPIC}'"
+)
+
+print("=" * 100)
+
+
+while (
+    query.isActive
+    and not END_RECEIVED
+):
+
+    time.sleep(1)
+
+
+query.stop()
+
+
+print()
+print("=" * 100)
+
+print(
+    "[STOPPED] POSTGRES_SINK"
+)
+
+print("=" * 100)

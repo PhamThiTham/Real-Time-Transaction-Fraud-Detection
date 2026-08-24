@@ -35,7 +35,8 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     confusion_matrix,
-    roc_auc_score,
+    roc_curve,
+    auc,
     average_precision_score,
 )
 
@@ -436,24 +437,24 @@ def latency_statistics(series):
 
 
 # ============================================================
-# PRECISION @ K
+# PRECISION TOP-K
 # ============================================================
 #
-# Transaction-level Precision@K:
+# Transaction-level Precision top-k, per the Fraud Detection
+# Handbook (Chapter 4 - Precision top-k metrics):
 #
 #   Sort all transactions by fraud_probability DESC.
 #
-#   Precision@K =
+#   P@k(d) = |fraud transactions in top K| / K
 #
-#       fraud transactions in top K
-#       ----------------------------
-#                K
+# Reference:
+#   https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_4_PerformanceMetrics/TopKBased.html
 #
 # ============================================================
 
-def precision_at_k(
+def precision_top_k_day(
     df,
-    k,
+    top_k=100,
 ):
 
     ranking = df[
@@ -463,31 +464,41 @@ def precision_at_k(
         ]
     ].dropna()
 
+    # Stable sort: matches evaluate_realtime.compute_precision_top_k,
+    # which uses Python's sorted(..., reverse=True) (stable sort).
     ranking = ranking.sort_values(
         "fraud_probability",
         ascending=False,
+        kind="stable",
+    ).reset_index(
+        drop=False
     )
 
-    if len(ranking) == 0:
-        return None
+    # Match evaluate_realtime.compute_precision_top_k: return None
+    # when fewer than top_k transactions are available.
+    if len(ranking) < top_k:
+        return 0, None
 
-    actual_k = min(
-        k,
-        len(ranking),
+    top_k_rows = ranking.head(
+        top_k
     )
 
-    top_k = ranking.head(
-        actual_k
+    nb_frauds = int(
+        (
+            top_k_rows["tx_fraud"]
+            .astype(int)
+            == 1
+        ).sum()
     )
 
-    result = (
-        top_k["tx_fraud"]
-        .astype(int)
-        .sum()
-        / actual_k
+    # Note: the denominator is always top_k, exactly as in the
+    # handbook's precision_top_k_day function (P@k = |fraud in top K| / K).
+    precision_top_k = (
+        nb_frauds
+        / top_k
     )
 
-    return float(result)
+    return nb_frauds, float(precision_top_k)
 
 
 # ============================================================
@@ -905,9 +916,14 @@ if (
     == 2
 ):
 
-    roc_auc = roc_auc_score(
+    roc_fpr, roc_tpr, _ = roc_curve(
         usable["tx_fraud"],
         usable["fraud_probability"],
+    )
+
+    roc_auc = auc(
+        roc_fpr,
+        roc_tpr,
     )
 
     average_precision = (
@@ -945,22 +961,22 @@ throughput = calculate_throughput(
 
 
 # ============================================================
-# PRECISION @ K
+# PRECISION TOP-K
 # ============================================================
 
-precision_50 = precision_at_k(
-    usable,
-    50,
+_, precision_50 = precision_top_k_day(
+    df,
+    top_k=50,
 )
 
-precision_100 = precision_at_k(
-    usable,
-    100,
+_, precision_100 = precision_top_k_day(
+    df,
+    top_k=100,
 )
 
-precision_200 = precision_at_k(
-    usable,
-    200,
+_, precision_200 = precision_top_k_day(
+    df,
+    top_k=200,
 )
 
 
@@ -1164,7 +1180,7 @@ st.dataframe(
 
 
 # ============================================================
-# PRECISION @ K
+# PRECISION TOP-K
 # ============================================================
 
 st.markdown(
@@ -1202,8 +1218,9 @@ p3.metric(
 )
 
 st.caption(
-    "Precision@K = tỷ lệ giao dịch fraud thực tế trong K giao dịch "
-    "có fraud_probability cao nhất."
+    "Precision top-k theo Fraud Detection Handbook: "
+    "P@k = số giao dịch fraud thực tế trong K giao dịch "
+    "có fraud_probability cao nhất / K."
 )
 
 

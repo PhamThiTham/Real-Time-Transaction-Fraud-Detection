@@ -67,6 +67,8 @@ from datetime import datetime, timezone
 
 import psycopg2
 
+import matplotlib.pyplot as plt
+
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -74,7 +76,7 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
     roc_auc_score,
-    average_precision_score,
+    precision_recall_curve,
 )
 
 
@@ -118,6 +120,11 @@ LATEST_JSON = os.path.join(
     "realtime_evaluation_latest.json"
 )
 
+PR_CURVE_PNG = os.path.join(
+    RESULT_DIR,
+    "precision_recall_curve.png"
+)
+
 
 # ============================================================
 # PRINT
@@ -135,6 +142,7 @@ def separator():
 def safe_float(value):
 
     if value is None:
+
         return None
 
     try:
@@ -150,6 +158,110 @@ def safe_float(value):
         pass
 
     return None
+
+
+# ============================================================
+# COMPUTE AVERAGE PRECISION
+# ============================================================
+#
+# Formula from the Fraud Detection Handbook
+# (Chapter 4, section "Precision-Recall curve"):
+#
+#     AP = sum(
+#         (recall[i] - recall[i-1])
+#         * precision[i]
+#     )
+#
+# i.e. the weighted mean of precisions achieved at each
+# threshold, with the increase in recall from the previous
+# threshold used as the weight.
+#
+# IMPORTANT (input ordering):
+#
+#     recall[i] - recall[i-1] >= 0
+#
+# requires the arrays to be ordered in increasing recall
+# (recall from 0 to 1). sklearn's precision_recall_curve()
+# returns decreasing recall, so the arrays MUST be reversed
+# with [::-1] before calling this function (see the call
+# site below, mirroring the handbook:
+#
+#     precision = precision[::-1]
+#     recall    = recall[::-1]
+#
+# )
+#
+# ============================================================
+
+def compute_AP(precision, recall):
+
+    AP = 0
+
+    n_thresholds = len(precision)
+
+    for i in range(1, n_thresholds):
+
+        if recall[i] - recall[i-1] >= 0:
+
+            AP = AP + (
+                recall[i] - recall[i-1]
+            ) * precision[i]
+
+    return AP
+
+
+# ============================================================
+# COMPUTE PRECISION TOP-K
+# ============================================================
+#
+# Precision top-k metric from the Fraud Detection Handbook
+# (Chapter 4, section "Precision top-k metrics"):
+#
+#     P@k = |A^Fraud| / |A| = |A^Fraud| / k
+#
+# where A is the set of alerts, i.e. the top-k transactions
+# with the highest fraud probability, and A^Fraud is the
+# subset of A that is actually fraudulent.
+#
+# Implementation follows the handbook's precision_top_k_day():
+#
+#     1. rank transactions by decreasing fraud probability
+#     2. keep the top-k most suspicious transactions
+#     3. P@k = (# fraudulent transactions in top-k) / k
+#
+# Returns None when fewer than k transactions are available.
+#
+# Input: pairs = list of (fraud_probability, actual) tuples.
+#
+# ============================================================
+
+def compute_precision_top_k(pairs, k):
+
+    if len(pairs) < k:
+
+        return None
+
+    # Rank transactions by decreasing fraud probability
+    ranked = sorted(
+        pairs,
+        key=lambda item: item[0],
+        reverse=True
+    )
+
+    # Top-k most suspicious transactions
+    top_k = ranked[:k]
+
+    # P@k = (# fraudulent transactions in top-k) / k
+    fraud_in_top_k = sum(
+        1
+        for item in top_k
+        if item[1] == 1
+    )
+
+    return (
+        fraud_in_top_k
+        / float(k)
+    )
 
 
 # ============================================================
@@ -204,7 +316,6 @@ def parse_timestamp(value):
 
             return None
 
-        # PostgreSQL / ISO Z
         if text.endswith("Z"):
 
             text = (
@@ -395,6 +506,91 @@ def print_latency(
 
 
 # ============================================================
+# PLOT PRECISION-RECALL CURVE
+# ============================================================
+
+def plot_precision_recall_curve(
+    precision,
+    recall,
+    average_precision
+):
+
+    if (
+        precision is None
+        or recall is None
+        or average_precision is None
+    ):
+
+        return
+
+    os.makedirs(
+        RESULT_DIR,
+        exist_ok=True
+    )
+
+    plt.figure(
+        figsize=(8, 6)
+    )
+
+    # Step-wise function (not linear interpolation), as
+    # recommended by the Fraud Detection Handbook:
+    #
+    #     "Linear interpolation ... should not be used for
+    #      plotting PR curves, nor for assessing their AUC.
+    #      The use of the step-wise function for plotting,
+    #      and AP as a measure of AUC are well established."
+    #
+    plt.step(
+        recall,
+        precision,
+        linewidth=2,
+        label=(
+            f"AP = "
+            f"{average_precision:.6f}"
+        )
+    )
+
+    plt.xlabel(
+        "Recall"
+    )
+
+    plt.ylabel(
+        "Precision"
+    )
+
+    plt.title(
+        "Precision-Recall Curve"
+    )
+
+    plt.legend()
+
+    plt.grid(
+        True,
+        alpha=0.3
+    )
+
+    plt.xlim(
+        0,
+        1
+    )
+
+    plt.ylim(
+        0,
+        1
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+        PR_CURVE_PNG,
+        dpi=300,
+        bbox_inches="tight"
+    )
+
+    plt.close()
+
+
+# ============================================================
 # DATABASE
 # ============================================================
 
@@ -556,8 +752,8 @@ def save_history_csv(
         "throughput"
     ]
 
-    card_precision = result[
-        "card_precision_at_k"
+    precision_top_k = result[
+        "precision_top_k"
     ]
 
     row = {
@@ -625,6 +821,11 @@ def save_history_csv(
         "average_precision":
             probability[
                 "average_precision"
+            ],
+
+        "pr_curve_points":
+            probability[
+                "pr_curve_points"
             ],
 
         "prediction_latency_samples":
@@ -712,14 +913,19 @@ def save_history_csv(
                 "transactions_per_sec"
             ],
 
-        "precision_at_5":
-            card_precision[
-                "precision_at_5"
+        "precision_top_k_50":
+            precision_top_k[
+                "precision_at_50"
             ],
 
-        "precision_at_10":
-            card_precision[
-                "precision_at_10"
+        "precision_top_k_100":
+            precision_top_k[
+                "precision_at_100"
+            ],
+
+        "precision_top_k_200":
+            precision_top_k[
+                "precision_at_200"
             ],
 
     }
@@ -845,14 +1051,6 @@ def main():
 
     # ========================================================
     # QUERY
-    # ========================================================
-    #
-    # IMPORTANT:
-    #
-    # PostgreSQL table currently uses lowercase names.
-    #
-    # Therefore SQL uses lowercase identifiers.
-    #
     # ========================================================
 
     cursor = connection.cursor()
@@ -1216,10 +1414,8 @@ def main():
     )
 
     actual_legitimate = (
-
         total
         - actual_fraud
-
     )
 
     predicted_fraud = sum(
@@ -1227,10 +1423,8 @@ def main():
     )
 
     predicted_legitimate = (
-
         total
         - predicted_fraud
-
     )
 
     # ========================================================
@@ -1290,12 +1484,10 @@ def main():
     ) > 0:
 
         fpr = (
-
             fp
             / (
                 fp + tn
             )
-
         )
 
     else:
@@ -1313,16 +1505,19 @@ def main():
     ) == 2:
 
         roc_auc = roc_auc_score(
-
             y_true,
-
             y_probability
-
         )
 
     # ========================================================
-    # AVERAGE PRECISION
+    # PRECISION-RECALL CURVE
     # ========================================================
+
+    pr_precision = None
+
+    pr_recall = None
+
+    pr_thresholds = None
 
     average_precision = None
 
@@ -1330,23 +1525,83 @@ def main():
         set(y_true)
     ) == 2:
 
-        average_precision = (
+        (
+            pr_precision,
+            pr_recall,
+            pr_thresholds
+        ) = precision_recall_curve(
 
-            average_precision_score(
+            y_true,
 
-                y_true,
+            y_probability
 
-                y_probability
+        )
 
-            )
+        # ====================================================
+        # IMPORTANT (input ordering):
+        #
+        # sklearn's precision_recall_curve() returns the
+        # arrays in DECREASING-recall order
+        # (recall starts at 1 and ends at 0).
+        #
+        # The handbook formula:
+        #
+        #     AP = sum(
+        #         (recall[i] - recall[i-1])
+        #         * precision[i]
+        #     )
+        #
+        # requires INCREASING-recall order, exactly as the
+        # handbook does before plotting / computing AP:
+        #
+        #     precision = precision[::-1]
+        #     recall    = recall[::-1]
+        #
+        # Without this reversal all recall differences are
+        # negative and compute_AP() returns 0.
+        #
+        # ====================================================
+
+        pr_precision = pr_precision[::-1]
+
+        pr_recall = pr_recall[::-1]
+
+        pr_thresholds = pr_thresholds[::-1]
+
+        # ====================================================
+        # IMPORTANT:
+        #
+        # AP is calculated using the exact custom formula
+        # provided by the user (same as the handbook).
+        #
+        # Do NOT replace this with:
+        #
+        #     average_precision_score()
+        #
+        # ====================================================
+
+        average_precision = compute_AP(
+            pr_precision,
+            pr_recall
+        )
+
+        # ----------------------------------------------------
+        # Plot PR curve
+        # ----------------------------------------------------
+
+        plot_precision_recall_curve(
+
+            pr_precision,
+
+            pr_recall,
+
+            average_precision
 
         )
 
     # ========================================================
     # THROUGHPUT
     # ========================================================
-    #
-    # IMPORTANT:
     #
     # Do NOT use TX_DATETIME.
     #
@@ -1405,16 +1660,23 @@ def main():
             )
 
     # ========================================================
-    # CARD PRECISION@K
+    # PRECISION TOP-K
+    # ========================================================
+    #
+    # P@k = (# fraudulent transactions in the top-k alerts) / k
+    #
+    # The top-k alerts are the k transactions with the highest
+    # fraud probability (Fraud Detection Handbook, Chapter 4,
+    # section "Precision top-k metrics").
+    #
+    # Computed over the whole evaluation batch, mirroring the
+    # handbook's precision_top_k_day() applied to the batch.
+    #
     # ========================================================
 
-    customer_scores = {}
+    transaction_pairs = []
 
     for row in rows:
-
-        customer_id = row[
-            index["CUSTOMER_ID"]
-        ]
 
         probability = row[
             index["FRAUD_PROBABILITY"]
@@ -1425,22 +1687,13 @@ def main():
         ]
 
         if (
-
-            customer_id is None
-
-            or probability is None
-
+            probability is None
             or actual is None
-
         ):
 
             continue
 
         try:
-
-            customer_id = int(
-                customer_id
-            )
 
             probability = float(
                 probability
@@ -1454,124 +1707,27 @@ def main():
 
             continue
 
-        if customer_id not in customer_scores:
-
-            customer_scores[
-                customer_id
-            ] = []
-
-        customer_scores[
-            customer_id
-        ].append(
-
+        transaction_pairs.append(
             (
                 probability,
                 actual
             )
-
         )
 
-    precision_at_5 = None
+    precision_top_k_50 = compute_precision_top_k(
+        transaction_pairs,
+        50
+    )
 
-    precision_at_10 = None
+    precision_top_k_100 = compute_precision_top_k(
+        transaction_pairs,
+        100
+    )
 
-    if customer_scores:
-
-        customer_rankings = []
-
-        for customer_id, values in (
-
-            customer_scores.items()
-
-        ):
-
-            max_probability = max(
-
-                value[0]
-
-                for value in values
-
-            )
-
-            has_fraud = any(
-
-                value[1] == 1
-
-                for value in values
-
-            )
-
-            customer_rankings.append(
-
-                (
-                    max_probability,
-                    has_fraud,
-                    customer_id
-                )
-
-            )
-
-        customer_rankings.sort(
-            reverse=True
-        )
-
-        number_of_customers = len(
-            customer_rankings
-        )
-
-        # ----------------------------------------------------
-        # Precision@5
-        # ----------------------------------------------------
-
-        if number_of_customers >= 5:
-
-            top_5 = customer_rankings[
-                :5
-            ]
-
-            fraud_customers_5 = sum(
-
-                1
-
-                for item in top_5
-
-                if item[1]
-
-            )
-
-            precision_at_5 = (
-
-                fraud_customers_5
-                / 5.0
-
-            )
-
-        # ----------------------------------------------------
-        # Precision@10
-        # ----------------------------------------------------
-
-        if number_of_customers >= 10:
-
-            top_10 = customer_rankings[
-                :10
-            ]
-
-            fraud_customers_10 = sum(
-
-                1
-
-                for item in top_10
-
-                if item[1]
-
-            )
-
-            precision_at_10 = (
-
-                fraud_customers_10
-                / 10.0
-
-            )
+    precision_top_k_200 = compute_precision_top_k(
+        transaction_pairs,
+        200
+    )
 
     # ========================================================
     # LATENCY STATISTICS
@@ -1739,6 +1895,21 @@ def main():
             f"{average_precision:.6f}"
         )
 
+        print(
+            f"PR curve points   : "
+            f"{len(pr_precision)}"
+        )
+
+        print(
+            f"PR thresholds     : "
+            f"{len(pr_thresholds)}"
+        )
+
+        print(
+            f"PR curve saved    : "
+            f"{PR_CURVE_PNG}"
+        )
+
     # ========================================================
     # PREDICTION LATENCY
     # ========================================================
@@ -1816,7 +1987,7 @@ def main():
         )
 
     # ========================================================
-    # CARD PRECISION@K
+    # PRECISION TOP-K
     # ========================================================
 
     print()
@@ -1824,36 +1995,51 @@ def main():
     separator()
 
     print(
-        "CARD PRECISION@K"
+        "PRECISION TOP-K"
     )
 
     separator()
 
-    if precision_at_5 is None:
+    if precision_top_k_50 is None:
 
         print(
-            "Precision@5 : N/A"
+            "Precision@50 : N/A "
+            "(fewer than 50 transactions)"
         )
 
     else:
 
         print(
-            f"Precision@5 : "
-            f"{precision_at_5:.6f}"
+            f"Precision@50 : "
+            f"{precision_top_k_50:.6f}"
         )
 
-    if precision_at_10 is None:
+    if precision_top_k_100 is None:
 
         print(
-            "Precision@10 : N/A "
-            "(fewer than 10 customers)"
+            "Precision@100 : N/A "
+            "(fewer than 100 transactions)"
         )
 
     else:
 
         print(
-            f"Precision@10 : "
-            f"{precision_at_10:.6f}"
+            f"Precision@100 : "
+            f"{precision_top_k_100:.6f}"
+        )
+
+    if precision_top_k_200 is None:
+
+        print(
+            "Precision@200 : N/A "
+            "(fewer than 200 transactions)"
+        )
+
+    else:
+
+        print(
+            f"Precision@200 : "
+            f"{precision_top_k_200:.6f}"
         )
 
     # ========================================================
@@ -1946,9 +2132,26 @@ def main():
                         average_precision
                     )
 
-                    if average_precision
-                    is not None
+                    if average_precision is not None
 
+                    else None
+                ),
+
+            "pr_curve_points":
+                (
+                    int(
+                        len(pr_precision)
+                    )
+
+                    if pr_precision is not None
+
+                    else 0
+                ),
+
+            "pr_curve_file":
+                (
+                    PR_CURVE_PNG
+                    if average_precision is not None
                     else None
                 ),
 
@@ -1974,8 +2177,7 @@ def main():
                         throughput_duration
                     )
 
-                    if throughput_duration
-                    is not None
+                    if throughput_duration is not None
 
                     else None
                 ),
@@ -1989,39 +2191,47 @@ def main():
                 (
                     float(throughput)
 
-                    if throughput
-                    is not None
+                    if throughput is not None
 
                     else None
                 ),
 
         },
 
-        "card_precision_at_k": {
+        "precision_top_k": {
 
-            "number_of_customers":
-                len(customer_scores),
+            "total_transactions":
+                len(transaction_pairs),
 
-            "precision_at_5":
+            "precision_at_50":
                 (
                     float(
-                        precision_at_5
+                        precision_top_k_50
                     )
 
-                    if precision_at_5
-                    is not None
+                    if precision_top_k_50 is not None
 
                     else None
                 ),
 
-            "precision_at_10":
+            "precision_at_100":
                 (
                     float(
-                        precision_at_10
+                        precision_top_k_100
                     )
 
-                    if precision_at_10
-                    is not None
+                    if precision_top_k_100 is not None
+
+                    else None
+                ),
+
+            "precision_at_200":
+                (
+                    float(
+                        precision_top_k_200
+                    )
+
+                    if precision_top_k_200 is not None
 
                     else None
                 ),
@@ -2065,6 +2275,13 @@ def main():
         f"Latest JSON : "
         f"{LATEST_JSON}"
     )
+
+    if average_precision is not None:
+
+        print(
+            f"PR Curve    : "
+            f"{PR_CURVE_PNG}"
+        )
 
     # ========================================================
     # CLOSE DATABASE

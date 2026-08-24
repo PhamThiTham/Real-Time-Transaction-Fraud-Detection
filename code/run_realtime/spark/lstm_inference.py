@@ -14,24 +14,47 @@
 #     LSTM + Attention
 #
 # SEQUENCE:
-#     5 transactions x 15 features
+#     5 PREVIOUS transactions x 15 features
 #
 # IMPORTANT:
 #
 #     Current transaction is NOT used for prediction.
 #
-#     Prediction Tn:
+#     Prediction T6:
 #
 #         history:
-#             T1 T2 T3 T4
+#             T1 T2 T3 T4 T5
 #
 #         sequence:
-#             PAD T1 T2 T3 T4
+#             T1 T2 T3 T4 T5
 #
-#         predict Tn
+#         predict:
+#             T6
 #
 #         AFTER prediction:
-#             add Tn to history
+#             add T6 to history
+#
+# Therefore:
+#
+#     T1 -> X=[0,0,0,0,0]     (left zero-padded)
+#     T2 -> X=[0,0,0,0,T1]
+#     T3 -> X=[0,0,0,T1,T2]
+#     T4 -> X=[0,0,T1,T2,T3]
+#     T5 -> X=[0,T1,T2,T3,T4]
+#     T6 -> X=[T1,T2,T3,T4,T5]
+#
+# LEFT ZERO-PADDING.
+#
+# When a customer has fewer than 5 previous transactions,
+# the sequence is LEFT-padded with zero feature vectors so
+# that a prediction is produced for EVERY transaction.
+#
+# The current transaction is NEVER part of its own X
+# (this still avoids current-row and target leakage).
+#
+# Expected LSTM input:
+#
+#     (1, 5, 15)
 #
 # ============================================================
 
@@ -55,6 +78,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
     from_json,
+    lit,
     struct,
     to_json,
     to_timestamp,
@@ -81,7 +105,7 @@ INPUT_TOPIC = "transactions_features"
 OUTPUT_TOPIC = "fraud_predictions"
 
 CHECKPOINT_LOCATION = (
-    "/tmp/checkpoint/lstm_inference"
+    "/opt/spark-data/checkpoint/lstm_inference"
 )
 
 MODEL_PATH = (
@@ -93,13 +117,152 @@ SEQ_LEN = 5
 
 NUM_FEATURES = 15
 
-THRESHOLD = 0.5
-
-PAD_VALUE = 0.0
+THRESHOLD = 0.7
 
 DEVICE = torch.device("cpu")
 
 MAX_LATENCY_SAMPLES = 10000
+
+
+# ============================================================
+# FEATURE STANDARDIZATION (StandardScaler from training)
+# ============================================================
+#
+# IMPORTANT:
+#   The LSTM model was trained on features standardized with a
+#   sklearn StandardScaler fitted on the training set
+#   (notebook Tham_DuBao_GianLan_GiaoDich.ipynb,
+#    train window = 2018-07-11 -> 2018-07-18).
+#
+#   Real-time features are RAW (TX_AMOUNT, counts, averages...).
+#   They MUST be standardized with the SAME mean/std before
+#   being fed to the model; otherwise the LSTM/sigmoid output
+#   saturates and predictions become meaningless.
+#
+#   Order matches FEATURE_COLUMNS exactly.
+#
+# ============================================================
+
+FEATURE_MEAN = [
+    53.76273204040162,      # 1  TX_AMOUNT
+    0.2845445852259144,     # 2  TX_DURING_WEEKEND
+    0.17373894334209897,    # 3  TX_DURING_NIGHT
+    3.549575663399474,      # 4  CUSTOMER_ID_NB_TX_1DAY_WINDOW
+    53.73393176675504,      # 5  CUSTOMER_ID_AVG_AMOUNT_1DAY_WINDOW
+    18.88403956490557,      # 6  CUSTOMER_ID_NB_TX_7DAY_WINDOW
+    53.66266882583177,      # 7  CUSTOMER_ID_AVG_AMOUNT_7DAY_WINDOW
+    77.90946987807793,      # 8  CUSTOMER_ID_NB_TX_30DAY_WINDOW
+    53.5233331667343,       # 9  CUSTOMER_ID_AVG_AMOUNT_30DAY_WINDOW
+    0.9971910112359551,     # 10 TERMINAL_ID_NB_TX_1DAY_WINDOW
+    0.0059967427683480755,  # 11 TERMINAL_ID_RISK_1DAY_WINDOW
+    7.047020678938561,      # 12 TERMINAL_ID_NB_TX_7DAY_WINDOW
+    0.009511224112498533,   # 13 TERMINAL_ID_RISK_7DAY_WINDOW
+    30.067729500358595,     # 14 TERMINAL_ID_NB_TX_30DAY_WINDOW
+    0.008949904198249757,   # 15 TERMINAL_ID_RISK_30DAY_WINDOW
+]
+
+FEATURE_STD = [
+    42.43813058744915,
+    0.45119725646830644,
+    0.3788848412228575,
+    1.8302544305676758,
+    34.97844326499479,
+    7.616160602877247,
+    30.45348722840948,
+    28.808621200612603,
+    29.12568463008163,
+    1.0165487018827732,
+    0.07346656643709902,
+    3.039536045798072,
+    0.07725363358380612,
+    8.30088569344886,
+    0.06232344757511963,
+]
+
+
+def standardize_features(
+    features
+):
+
+    if len(features) != NUM_FEATURES:
+
+        raise ValueError(
+            f"Invalid feature length for "
+            f"standardization: "
+            f"len={len(features)}, "
+            f"expected={NUM_FEATURES}"
+        )
+
+    return [
+        (
+            float(features[i])
+            - FEATURE_MEAN[i]
+        )
+        / FEATURE_STD[i]
+        for i in range(NUM_FEATURES)
+    ]
+
+
+# ============================================================
+# 1.5 RUN CONTROL
+# ============================================================
+#
+# VERBOSE      : if False, per-transaction debug prints are hidden.
+# END_MARKER   : special Kafka message that travels through the
+#                whole pipeline to signal completion.
+# END_RECEIVED : set to True when this stage receives the marker.
+#
+# ============================================================
+
+VERBOSE = False
+
+END_MARKER = "__END_OF_STREAM__"
+
+END_RECEIVED = False
+
+
+def log(
+    *args,
+    **kwargs
+):
+
+    if VERBOSE:
+
+        print(
+            *args,
+            **kwargs
+        )
+
+
+def write_end_marker():
+
+    marker_df = (
+        spark
+        .range(1)
+        .select(
+            lit(END_MARKER).alias("value")
+        )
+    )
+
+    (
+        marker_df
+        .write
+        .format("kafka")
+        .option(
+            "kafka.bootstrap.servers",
+            KAFKA_BOOTSTRAP_SERVERS
+        )
+        .option(
+            "topic",
+            OUTPUT_TOPIC
+        )
+        .save()
+    )
+
+    print(
+        "END MARKER WROTE TO "
+        f"TOPIC {OUTPUT_TOPIC}"
+    )
 
 
 # ============================================================
@@ -118,14 +281,29 @@ end_to_end_latency_history = deque(
 # ============================================================
 # 3. FEATURE ORDER
 # ============================================================
+#
+# IMPORTANT:
+#
+# This order MUST be exactly the same as the order used
+# during model training.
+#
+# ============================================================
 
 FEATURE_COLUMNS = [
+
+    # --------------------------------------------------------
+    # Transaction features
+    # --------------------------------------------------------
 
     "TX_AMOUNT",
 
     "TX_DURING_WEEKEND",
 
     "TX_DURING_NIGHT",
+
+    # --------------------------------------------------------
+    # Customer features
+    # --------------------------------------------------------
 
     "CUSTOMER_ID_NB_TX_1DAY_WINDOW",
 
@@ -138,6 +316,10 @@ FEATURE_COLUMNS = [
     "CUSTOMER_ID_NB_TX_30DAY_WINDOW",
 
     "CUSTOMER_ID_AVG_AMOUNT_30DAY_WINDOW",
+
+    # --------------------------------------------------------
+    # Terminal features
+    # --------------------------------------------------------
 
     "TERMINAL_ID_NB_TX_1DAY_WINDOW",
 
@@ -154,6 +336,10 @@ FEATURE_COLUMNS = [
 ]
 
 
+# ============================================================
+# 4. FEATURE COUNT CHECK
+# ============================================================
+
 if len(FEATURE_COLUMNS) != NUM_FEATURES:
 
     raise ValueError(
@@ -163,10 +349,69 @@ if len(FEATURE_COLUMNS) != NUM_FEATURES:
 
 
 # ============================================================
-# 4. LATENCY FUNCTIONS
+# 5. PRINT CONFIGURATION
 # ============================================================
 
-def percentile(values, percentile_value):
+print()
+print("=" * 100)
+print("LSTM REAL-TIME FRAUD INFERENCE")
+print("=" * 100)
+
+print(
+    f"Input topic       : {INPUT_TOPIC}"
+)
+
+print(
+    f"Output topic      : {OUTPUT_TOPIC}"
+)
+
+print(
+    f"Sequence length   : {SEQ_LEN}"
+)
+
+print(
+    f"Number features   : {NUM_FEATURES}"
+)
+
+print(
+    f"Threshold         : {THRESHOLD}"
+)
+
+print(
+    "Padding           : LEFT-ZERO-PAD"
+)
+
+print(
+    "Current TX in X   : NO"
+)
+
+print(
+    "Current TX added  : AFTER prediction"
+)
+
+print()
+print("FEATURE ORDER:")
+
+for i, feature in enumerate(
+    FEATURE_COLUMNS,
+    start=1
+):
+
+    print(
+        f"  {i:02d}. {feature}"
+    )
+
+print("=" * 100)
+
+
+# ============================================================
+# 6. LATENCY FUNCTIONS
+# ============================================================
+
+def percentile(
+    values,
+    percentile_value
+):
 
     if not values:
         return None
@@ -187,15 +432,17 @@ def percentile(values, percentile_value):
         len(sorted_values) - 1
     )
 
-    fraction = rank - lower_index
+    fraction = (
+        rank - lower_index
+    )
 
-    lower_value = sorted_values[
-        lower_index
-    ]
+    lower_value = (
+        sorted_values[lower_index]
+    )
 
-    upper_value = sorted_values[
-        upper_index
-    ]
+    upper_value = (
+        sorted_values[upper_index]
+    )
 
     return (
         lower_value
@@ -207,7 +454,9 @@ def percentile(values, percentile_value):
     )
 
 
-def calculate_latency_statistics(values):
+def calculate_latency_statistics(
+    values
+):
 
     if not values:
 
@@ -225,24 +474,26 @@ def calculate_latency_statistics(values):
 
         "count": len(values),
 
-        "average": (
-            sum(values) / len(values)
-        ),
+        "average":
+            sum(values) / len(values),
 
-        "p50": percentile(
-            values,
-            50
-        ),
+        "p50":
+            percentile(
+                values,
+                50
+            ),
 
-        "p95": percentile(
-            values,
-            95
-        ),
+        "p95":
+            percentile(
+                values,
+                95
+            ),
 
-        "p99": percentile(
-            values,
-            99
-        ),
+        "p99":
+            percentile(
+                values,
+                99
+            ),
     }
 
 
@@ -262,7 +513,10 @@ def print_latency_statistics(
 
     if stats["count"] == 0:
 
-        print("No latency samples.")
+        print(
+            "No latency samples."
+        )
+
         print("=" * 100)
 
         return
@@ -295,7 +549,7 @@ def print_latency_statistics(
 
 
 # ============================================================
-# 5. PRODUCER TIMESTAMP
+# 7. PRODUCER TIMESTAMP
 # ============================================================
 
 def parse_producer_timestamp(
@@ -315,6 +569,7 @@ def parse_producer_timestamp(
             return None
 
         if value.endswith("Z"):
+
             value = (
                 value[:-1]
                 + "+00:00"
@@ -335,8 +590,9 @@ def parse_producer_timestamp(
     except Exception as e:
 
         print(
-            f"WARNING: Cannot parse "
-            f"PRODUCER_TIMESTAMP={producer_timestamp}"
+            "WARNING: Cannot parse "
+            f"PRODUCER_TIMESTAMP="
+            f"{producer_timestamp}"
         )
 
         print(
@@ -347,12 +603,15 @@ def parse_producer_timestamp(
 
 
 # ============================================================
-# 6. ATTENTION
+# 8. ATTENTION
 # ============================================================
 
 class Attention(nn.Module):
 
-    def __init__(self, dim):
+    def __init__(
+        self,
+        dim
+    ):
 
         super().__init__()
 
@@ -364,7 +623,10 @@ class Attention(nn.Module):
         self.mask = None
 
 
-    def set_mask(self, mask):
+    def set_mask(
+        self,
+        mask
+    ):
 
         self.mask = mask
 
@@ -435,10 +697,12 @@ class Attention(nn.Module):
 
 
 # ============================================================
-# 7. MODEL
+# 9. MODEL
 # ============================================================
 
-class FraudLSTMWithAttention(nn.Module):
+class FraudLSTMWithAttention(
+    nn.Module
+):
 
     def __init__(
         self,
@@ -452,9 +716,13 @@ class FraudLSTMWithAttention(nn.Module):
 
         super().__init__()
 
-        self.num_features = num_features
+        self.num_features = (
+            num_features
+        )
 
-        self.hidden_size = hidden_size
+        self.hidden_size = (
+            hidden_size
+        )
 
         self.lstm = nn.LSTM(
             input_size=num_features,
@@ -488,11 +756,18 @@ class FraudLSTMWithAttention(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
 
-    def forward(self, x):
+    def forward(
+        self,
+        x
+    ):
 
-        hidden_states, _ = self.lstm(x)
+        hidden_states, _ = (
+            self.lstm(x)
+        )
 
-        last_transaction = x[:, -1, :]
+        last_transaction = (
+            x[:, -1, :]
+        )
 
         context_vector = self.ff(
             last_transaction
@@ -517,7 +792,9 @@ class FraudLSTMWithAttention(nn.Module):
             combined_state
         )
 
-        hidden = self.relu(hidden)
+        hidden = self.relu(
+            hidden
+        )
 
         output = self.fc2(
             hidden
@@ -531,7 +808,7 @@ class FraudLSTMWithAttention(nn.Module):
 
 
 # ============================================================
-# 8. LOAD MODEL
+# 10. LOAD MODEL
 # ============================================================
 
 print()
@@ -566,7 +843,9 @@ model = FraudLSTMWithAttention(
 
 
 model.load_state_dict(
-    checkpoint["model_state_dict"]
+    checkpoint[
+        "model_state_dict"
+    ]
 )
 
 model.to(DEVICE)
@@ -594,7 +873,7 @@ print("=" * 100)
 
 
 # ============================================================
-# 9. INPUT SCHEMA
+# 11. INPUT SCHEMA
 # ============================================================
 
 input_schema = StructType([
@@ -724,11 +1003,12 @@ input_schema = StructType([
         IntegerType(),
         True
     ),
+
 ])
 
 
 # ============================================================
-# 10. SPARK
+# 12. SPARK
 # ============================================================
 
 spark = (
@@ -746,7 +1026,17 @@ spark.sparkContext.setLogLevel(
 
 
 # ============================================================
-# 11. CUSTOMER HISTORY
+# 13. CUSTOMER HISTORY
+# ============================================================
+#
+# customer_history[customer_id]
+#     =
+# deque containing ONLY previous transactions
+#
+# Maximum:
+#
+#     5 transactions
+#
 # ============================================================
 
 customer_history = defaultdict(
@@ -757,7 +1047,7 @@ customer_history = defaultdict(
 
 
 # ============================================================
-# 12. READ KAFKA
+# 14. READ KAFKA
 # ============================================================
 
 raw_stream = (
@@ -774,29 +1064,30 @@ raw_stream = (
     )
     .option(
         "startingOffsets",
-        "latest"
+        "earliest"
     )
     .option(
         "failOnDataLoss",
-        "false"
+        "true"
     )
     .load()
 )
 
 
 # ============================================================
-# 13. PARSE
+# 15. PARSE JSON
 # ============================================================
 
 transactions_features = (
     raw_stream
     .select(
+        col("value").cast("string").alias("_RAW_VALUE"),
         from_json(
             col("value").cast("string"),
             input_schema
         ).alias("data")
     )
-    .select("data.*")
+    .select("_RAW_VALUE", "data.*")
     .withColumn(
         "TX_DATETIME",
         to_timestamp(
@@ -807,52 +1098,71 @@ transactions_features = (
 
 
 # ============================================================
-# 14. PAD
+# 16. BUILD 5-SLOT SEQUENCE (LEFT ZERO-PADDING)
+# ============================================================
+#
+# IMPORTANT:
+#
+# LEFT ZERO-PADDING.
+#
+# If history has:
+#
+#     0, 1, 2, 3, 4 transactions
+#
+# the sequence is LEFT-padded with zero feature vectors so
+# that the most recent transaction stays at the last position
+# (the model uses x[:, -1, :] as its attention context).
+#
+# This produces a prediction for EVERY transaction.
+#
 # ============================================================
 
-def create_pad_vector():
+def build_sequence(
+    history
+):
 
-    return [
-        float(PAD_VALUE)
-        for _ in range(NUM_FEATURES)
-    ]
+    sequence = []
 
+    for item in history:
 
-def build_padded_sequence(history):
+        feature_vector = item[2]
 
-    sequence = [
-        item[2]
-        for item in history
-    ]
+        if len(feature_vector) != NUM_FEATURES:
+
+            raise ValueError(
+                "Invalid feature vector "
+                f"length={len(feature_vector)}, "
+                f"expected={NUM_FEATURES}"
+            )
+
+        sequence.append(
+            feature_vector
+        )
 
     sequence = sequence[-SEQ_LEN:]
 
-    number_of_padding = (
-        SEQ_LEN - len(sequence)
-    )
+    if len(sequence) < SEQ_LEN:
 
-    padding = [
-        create_pad_vector()
-        for _ in range(number_of_padding)
-    ]
+        pad_count = SEQ_LEN - len(sequence)
 
-    result = (
-        padding
-        + sequence
-    )
+        sequence = (
+            [[0.0] * NUM_FEATURES for _ in range(pad_count)]
+            + sequence
+        )
 
-    if len(result) != SEQ_LEN:
+    if len(sequence) != SEQ_LEN:
 
         raise ValueError(
             f"Invalid sequence length "
-            f"{len(result)}"
+            f"{len(sequence)}, "
+            f"expected={SEQ_LEN}"
         )
 
-    return result
+    return sequence
 
 
 # ============================================================
-# 15. PROCESS BATCH
+# 17. PROCESS BATCH
 # ============================================================
 
 def process_batch(
@@ -860,19 +1170,69 @@ def process_batch(
     batch_id
 ):
 
+    global END_RECEIVED
+
     print()
     print("=" * 100)
+
     print(
-        f"LSTM INFERENCE - BATCH ID = {batch_id}"
+        f"LSTM INFERENCE - "
+        f"BATCH ID = {batch_id}"
     )
+
     print("=" * 100)
+
 
     if batch_df.isEmpty():
 
-        print("EMPTY BATCH")
+        print(
+            "EMPTY BATCH"
+        )
+
         return
 
+
     rows = batch_df.collect()
+
+
+    # --------------------------------------------------------
+    # END MARKER DETECTION
+    # --------------------------------------------------------
+
+    end_marker_present = any(
+        row["_RAW_VALUE"] == END_MARKER
+        for row in rows
+    )
+
+    rows = [
+        row
+        for row in rows
+        if row["_RAW_VALUE"] != END_MARKER
+    ]
+
+
+    if not rows:
+
+        if end_marker_present:
+
+            write_end_marker()
+
+            print()
+            print("=" * 100)
+            print(
+                "[ALL DONE] "
+                "LSTM_INFERENCE"
+            )
+            print("=" * 100)
+
+            END_RECEIVED = True
+
+        return
+
+
+    # --------------------------------------------------------
+    # Process transactions chronologically.
+    # --------------------------------------------------------
 
     rows = sorted(
         rows,
@@ -883,9 +1243,11 @@ def process_batch(
         )
     )
 
+
     print(
         f"ROWS = {len(rows)}"
     )
+
 
     prediction_rows = []
 
@@ -895,39 +1257,49 @@ def process_batch(
 
 
     # ========================================================
-    # EACH TRANSACTION
+    # EACH TRANSACTION - build X + update history
     # ========================================================
+
+    pending = []
+
 
     for row in rows:
 
-        transaction_id = row[
-            "TRANSACTION_ID"
-        ]
 
-        customer_id = row[
-            "CUSTOMER_ID"
-        ]
+        transaction_id = row["TRANSACTION_ID"]
 
-        tx_datetime = row[
-            "TX_DATETIME"
-        ]
+        customer_id = row["CUSTOMER_ID"]
 
-        producer_timestamp = row[
-            "PRODUCER_TIMESTAMP"
-        ]
+        tx_datetime = row["TX_DATETIME"]
 
-        terminal_id = row[
-            "TERMINAL_ID"
-        ]
+        producer_timestamp = row["PRODUCER_TIMESTAMP"]
 
+
+        # ====================================================
+        # BASIC VALIDATION
+        # ====================================================
 
         if transaction_id is None:
+
+            log("SKIP: TRANSACTION_ID is NULL")
+
             continue
+
 
         if customer_id is None:
+
+            log("SKIP: CUSTOMER_ID is NULL")
+
             continue
 
+
         if tx_datetime is None:
+
+            log(
+                f"SKIP: TX_DATETIME is NULL "
+                f"for transaction {transaction_id}"
+            )
+
             continue
 
 
@@ -937,13 +1309,13 @@ def process_batch(
 
         current_features = []
 
+
         for feature_name in FEATURE_COLUMNS:
 
-            value = row[
-                feature_name
-            ]
+            value = row[feature_name]
 
             if value is None:
+
                 value = 0.0
 
             current_features.append(
@@ -951,138 +1323,255 @@ def process_batch(
             )
 
 
+        if len(current_features) != NUM_FEATURES:
+
+            raise ValueError(
+                f"Invalid current feature "
+                f"length={len(current_features)}"
+            )
+
+
         # ====================================================
-        # HISTORY BEFORE CURRENT TX
+        # STANDARDIZE FEATURES
+        # ====================================================
+        #
+        # IMPORTANT:
+        #   Apply the SAME StandardScaler used during training
+        #   so the model receives features with the same
+        #   distribution as in training.
+        #
         # ====================================================
 
-        history = customer_history[
-            customer_id
-        ]
-
-
-        print()
-        print("-" * 100)
-
-        print(
-            f"TRANSACTION_ID : {transaction_id}"
+        current_features = standardize_features(
+            current_features
         )
 
-        print(
-            f"CUSTOMER_ID    : {customer_id}"
-        )
 
-        print(
+        # ====================================================
+        # HISTORY BEFORE CURRENT TRANSACTION
+        # ====================================================
+
+        history = customer_history[customer_id]
+
+
+        log()
+        log("-" * 100)
+        log(f"TRANSACTION_ID : {transaction_id}")
+        log(f"CUSTOMER_ID    : {customer_id}")
+        log(f"TX_DATETIME    : {tx_datetime}")
+        log(
             f"TX_AMOUNT      : "
             f"{float(row['TX_AMOUNT'] or 0):.2f}"
         )
+        log(f"HISTORY LENGTH : {len(history)}")
 
-        print(
-            f"HISTORY LENGTH : {len(history)}"
+
+        # ====================================================
+        # BUILD X (WITH LEFT ZERO-PADDING)
+        # ====================================================
+
+        # IMPORTANT:
+        #   The sequence must END with the CURRENT transaction
+        #   (last element), exactly like the training
+        #   FraudSequenceDataset.
+        #
+        #   Only PAST transactions are read from history; the
+        #   current transaction is appended to history only
+        #   AFTER X is built (no self-leakage).
+        #
+        #   (Fixed: previously only the past transactions were
+        #   passed to the model, so the current transaction -
+        #   the most predictive signal, e.g. TX_AMOUNT - was
+        #   never seen by the model.)
+
+        sequence = build_sequence(
+            list(history) + [
+                (
+                    tx_datetime,
+                    int(transaction_id),
+                    current_features
+                )
+            ]
         )
 
 
-        # ====================================================
-        # BUILD SEQUENCE
-        # ====================================================
+        if sequence is None:
 
-        padded_sequence = (
-            build_padded_sequence(
-                history
+            raise RuntimeError(
+                "Sequence should contain "
+                f"{SEQ_LEN} transactions."
             )
-        )
 
 
         x = torch.tensor(
-            padded_sequence,
+            sequence,
             dtype=torch.float32,
             device=DEVICE
         ).unsqueeze(0)
 
 
-        if tuple(x.shape) != (
+        expected_shape = (
             1,
             SEQ_LEN,
             NUM_FEATURES
-        ):
+        )
+
+
+        if tuple(x.shape) != expected_shape:
 
             raise ValueError(
                 f"Invalid model input "
-                f"shape={tuple(x.shape)}"
+                f"shape={tuple(x.shape)}, "
+                f"expected={expected_shape}"
             )
 
 
+        pending.append(
+            {
+                "x": x,
+                "row": row,
+                "transaction_id": int(transaction_id),
+                "tx_datetime": tx_datetime,
+                "producer_timestamp": producer_timestamp,
+            }
+        )
+
+
+        # ------------------------------------------------
+        # ADD CURRENT TRANSACTION TO HISTORY
+        # AFTER X IS BUILT (no self-leakage).
+        # ------------------------------------------------
+
+        history.append(
+            (
+                tx_datetime,
+                int(transaction_id),
+                current_features
+            )
+        )
+
+
+    # ========================================================
+    # NO PREDICTIONS
+    # ========================================================
+
+    if not pending:
+
+        print()
         print(
-            f"MODEL INPUT SHAPE : "
-            f"{tuple(x.shape)}"
+            "NO PREDICTIONS GENERATED "
+            "IN THIS BATCH."
         )
 
+        if end_marker_present:
 
-        # ====================================================
-        # PREDICTION START
-        # ====================================================
+            write_end_marker()
 
-        prediction_start_timestamp = (
-            datetime.now(timezone.utc)
-        )
-
-        prediction_start = (
-            time.perf_counter()
-        )
-
-
-        with torch.no_grad():
-
-            probability = (
-                model(x)
-                .item()
+            print()
+            print("=" * 100)
+            print(
+                "[ALL DONE] "
+                "LSTM_INFERENCE"
             )
+            print("=" * 100)
+
+            END_RECEIVED = True
+
+        return
 
 
-        prediction_end = (
-            time.perf_counter()
-        )
+    # ========================================================
+    # BATCHED MODEL INFERENCE
+    # ========================================================
 
-        prediction_end_timestamp = (
-            datetime.now(timezone.utc)
-        )
-
-
-        prediction_latency_ms = (
-            prediction_end
-            - prediction_start
-        ) * 1000.0
+    x_batch = torch.cat(
+        [item["x"] for item in pending],
+        dim=0
+    )
 
 
-        # ====================================================
-        # PREDICTION
-        # ====================================================
+    prediction_start_timestamp = (
+        datetime.now(timezone.utc)
+    )
+
+
+    prediction_start = time.perf_counter()
+
+
+    with torch.no_grad():
+
+        probability_batch = model(x_batch)
+
+
+    prediction_end = time.perf_counter()
+
+
+    prediction_end_timestamp = (
+        datetime.now(timezone.utc)
+    )
+
+
+    batch_latency_ms = (
+        prediction_end - prediction_start
+    ) * 1000.0
+
+
+    probabilities = (
+        probability_batch.squeeze(1).tolist()
+    )
+
+
+    print()
+
+    print(
+        f"BATCHED INFERENCE : "
+        f"{len(pending)} sample(s) -> "
+        f"{batch_latency_ms:.3f} ms "
+        f"({batch_latency_ms / len(pending):.3f} ms/tx)"
+    )
+
+
+    # ========================================================
+    # BUILD PREDICTION ROWS
+    # ========================================================
+
+    for item, probability in zip(
+        pending,
+        probabilities
+    ):
+
+        row = item["row"]
+
+        transaction_id = item["transaction_id"]
+
+        tx_datetime = item["tx_datetime"]
+
+        producer_timestamp = item["producer_timestamp"]
+
 
         prediction = int(
             probability >= THRESHOLD
         )
 
 
-        # ====================================================
-        # END TO END
-        # ====================================================
+        # ------------------------------------------------
+        # END-TO-END LATENCY
+        # ------------------------------------------------
 
         end_to_end_latency_ms = None
 
-        producer_dt = (
-            parse_producer_timestamp(
-                producer_timestamp
-            )
+        producer_dt = parse_producer_timestamp(
+            producer_timestamp
         )
+
 
         if producer_dt is not None:
 
             end_to_end_latency_ms = (
-
                 (
                     prediction_end_timestamp
                     - producer_dt
                 ).total_seconds()
-
                 * 1000.0
             )
 
@@ -1096,104 +1585,55 @@ def process_batch(
                     end_to_end_latency_ms
                 )
 
-            else:
 
-                print(
-                    "WARNING: Negative E2E latency."
-                )
-
-                end_to_end_latency_ms = None
-
+        # ------------------------------------------------
+        # PREDICTION LATENCY HISTORY
+        # ------------------------------------------------
 
         prediction_latency_history.append(
-            prediction_latency_ms
+            batch_latency_ms
         )
 
         batch_prediction_latencies.append(
-            prediction_latency_ms
+            batch_latency_ms
         )
 
-
-        # ====================================================
-        # LOG
-        # ====================================================
-
-        print(
-            f"FRAUD PROBABILITY : "
-            f"{probability:.6f}"
-        )
-
-        print(
-            f"PREDICTION        : "
-            f"{prediction}"
-        )
-
-        print(
-            f"PREDICTION LATENCY: "
-            f"{prediction_latency_ms:.3f} ms"
-        )
-
-        if end_to_end_latency_ms is not None:
-
-            print(
-                f"END-TO-END LATENCY: "
-                f"{end_to_end_latency_ms:.3f} ms"
-            )
-
-        else:
-
-            print(
-                "END-TO-END LATENCY: N/A"
-            )
-
-
-        # ====================================================
-        # OUTPUT
-        # ====================================================
 
         prediction_rows.append({
 
             "TRANSACTION_ID":
-                int(transaction_id),
+                transaction_id,
 
             "TX_DATETIME":
                 tx_datetime,
 
             "PRODUCER_TIMESTAMP":
-                producer_timestamp,
-
-            "CUSTOMER_ID":
-                int(customer_id),
-
-            "TERMINAL_ID":
                 (
-                    int(terminal_id)
-                    if terminal_id is not None
+                    str(producer_timestamp)
+                    if producer_timestamp is not None
                     else None
                 ),
 
+            "CUSTOMER_ID":
+                row["CUSTOMER_ID"],
+
+            "TERMINAL_ID":
+                row["TERMINAL_ID"],
+
             "TX_AMOUNT":
-                float(
-                    row["TX_AMOUNT"]
-                    if row["TX_AMOUNT"] is not None
-                    else 0.0
-                ),
+                float(row["TX_AMOUNT"] or 0.0),
 
             "FRAUD_PROBABILITY":
                 float(probability),
 
             "FRAUD_PREDICTION":
-                int(prediction),
+                prediction,
 
             "THRESHOLD":
-                float(THRESHOLD),
+                THRESHOLD,
 
             "TX_FRAUD":
-                int(
-                    row["TX_FRAUD"]
-                    if row["TX_FRAUD"] is not None
-                    else 0
-                ),
+                int(row["TX_FRAUD"] or 0),
 
             "PREDICTION_START_TIMESTAMP":
                 prediction_start_timestamp,
@@ -1202,7 +1642,7 @@ def process_batch(
                 prediction_end_timestamp,
 
             "PREDICTION_LATENCY_MS":
-                float(prediction_latency_ms),
+                float(batch_latency_ms),
 
             "END_TO_END_LATENCY_MS":
                 (
@@ -1211,36 +1651,6 @@ def process_batch(
                     else None
                 ),
         })
-
-
-        # ====================================================
-        # IMPORTANT:
-        #
-        # CURRENT TRANSACTION ADDED AFTER PREDICTION
-        # ====================================================
-
-        history.append(
-
-            (
-                tx_datetime,
-                int(transaction_id),
-                current_features
-            )
-
-        )
-
-
-    # ========================================================
-    # NO OUTPUT
-    # ========================================================
-
-    if not prediction_rows:
-
-        print(
-            "NO PREDICTIONS GENERATED."
-        )
-
-        return
 
 
     # ========================================================
@@ -1252,15 +1662,18 @@ def process_batch(
         batch_prediction_latencies
     )
 
+
     print_latency_statistics(
         "END-TO-END LATENCY - CURRENT BATCH",
         batch_end_to_end_latencies
     )
 
+
     print_latency_statistics(
         "PREDICTION LATENCY - CUMULATIVE",
         prediction_latency_history
     )
+
 
     print_latency_statistics(
         "END-TO-END LATENCY - CUMULATIVE",
@@ -1274,89 +1687,34 @@ def process_batch(
 
     output_schema = StructType([
 
-        StructField(
-            "TRANSACTION_ID",
-            IntegerType(),
-            False
-        ),
+        StructField("TRANSACTION_ID", IntegerType(), False),
 
-        StructField(
-            "TX_DATETIME",
-            TimestampType(),
-            True
-        ),
+        StructField("TX_DATETIME", TimestampType(), True),
 
-        StructField(
-            "PRODUCER_TIMESTAMP",
-            StringType(),
-            True
-        ),
+        StructField("PRODUCER_TIMESTAMP", StringType(), True),
 
-        StructField(
-            "CUSTOMER_ID",
-            IntegerType(),
-            True
-        ),
+        StructField("CUSTOMER_ID", IntegerType(), True),
 
-        StructField(
-            "TERMINAL_ID",
-            IntegerType(),
-            True
-        ),
+        StructField("TERMINAL_ID", IntegerType(), True),
 
-        StructField(
-            "TX_AMOUNT",
-            DoubleType(),
-            True
-        ),
+        StructField("TX_AMOUNT", DoubleType(), True),
 
-        StructField(
-            "FRAUD_PROBABILITY",
-            DoubleType(),
-            True
-        ),
+        StructField("FRAUD_PROBABILITY", DoubleType(), True),
 
-        StructField(
-            "FRAUD_PREDICTION",
-            IntegerType(),
-            True
-        ),
+        StructField("FRAUD_PREDICTION", IntegerType(), True),
 
-        StructField(
-            "THRESHOLD",
-            DoubleType(),
-            True
-        ),
+        StructField("THRESHOLD", DoubleType(), True),
 
-        StructField(
-            "TX_FRAUD",
-            IntegerType(),
-            True
-        ),
+        StructField("TX_FRAUD", IntegerType(), True),
 
-        StructField(
-            "PREDICTION_START_TIMESTAMP",
-            TimestampType(),
-            True
-        ),
+        StructField("PREDICTION_START_TIMESTAMP", TimestampType(), True),
 
-        StructField(
-            "PREDICTION_END_TIMESTAMP",
-            TimestampType(),
-            True
-        ),
+        StructField("PREDICTION_END_TIMESTAMP", TimestampType(), True),
 
-        StructField(
-            "PREDICTION_LATENCY_MS",
-            DoubleType(),
-            True
-        ),
+        StructField("PREDICTION_LATENCY_MS", DoubleType(), True),
 
-        StructField(
-            "END_TO_END_LATENCY_MS",
-            DoubleType(),
-            True
-        ),
+        StructField("END_TO_END_LATENCY_MS", DoubleType(), True),
+
     ])
 
 
@@ -1366,24 +1724,28 @@ def process_batch(
     )
 
 
-    print()
-    print(
-        "PREDICTION DATA:"
-    )
+    # ========================================================
+    # DISPLAY OUTPUT (only when VERBOSE)
+    # ========================================================
 
-    output_df.select(
-        "TRANSACTION_ID",
-        "CUSTOMER_ID",
-        "TX_AMOUNT",
-        "FRAUD_PROBABILITY",
-        "FRAUD_PREDICTION",
-        "TX_FRAUD",
-        "PREDICTION_LATENCY_MS",
-        "END_TO_END_LATENCY_MS"
-    ).show(
-        len(prediction_rows),
-        truncate=False
-    )
+    if VERBOSE:
+
+        print()
+        print("PREDICTION DATA:")
+
+        output_df.select(
+            "TRANSACTION_ID",
+            "CUSTOMER_ID",
+            "TX_AMOUNT",
+            "FRAUD_PROBABILITY",
+            "FRAUD_PREDICTION",
+            "TX_FRAUD",
+            "PREDICTION_LATENCY_MS",
+            "END_TO_END_LATENCY_MS"
+        ).show(
+            len(prediction_rows),
+            truncate=False
+        )
 
 
     # ========================================================
@@ -1396,9 +1758,7 @@ def process_batch(
 
         .select(
 
-            col(
-                "TRANSACTION_ID"
-            )
+            col("TRANSACTION_ID")
             .cast("string")
             .alias("key"),
 
@@ -1406,26 +1766,36 @@ def process_batch(
                 struct(
                     *[
                         col(c)
-                        for c in output_df.columns
+                        for c
+                        in output_df.columns
                     ]
                 )
             ).alias("value")
+
         )
+
     )
 
 
     (
         kafka_output
+
+        .coalesce(1)
+
         .write
+
         .format("kafka")
+
         .option(
             "kafka.bootstrap.servers",
             KAFKA_BOOTSTRAP_SERVERS
         )
+
         .option(
             "topic",
             OUTPUT_TOPIC
         )
+
         .save()
     )
 
@@ -1437,40 +1807,91 @@ def process_batch(
         f"{OUTPUT_TOPIC}"
     )
 
+    print()
+    print("=" * 100)
+    print(
+        f"[BATCH DONE] "
+        f"LSTM_INFERENCE - batch {batch_id}: "
+        f"processed {len(prediction_rows)} transactions -> "
+        f"{OUTPUT_TOPIC}"
+    )
     print("=" * 100)
 
 
+    # ========================================================
+    # END MARKER - propagate downstream
+    # ========================================================
+
+    if end_marker_present:
+
+        write_end_marker()
+
+        print()
+        print("=" * 100)
+        print(
+            "[ALL DONE] "
+            "LSTM_INFERENCE"
+        )
+        print("=" * 100)
+
+        END_RECEIVED = True
+
+
+
 # ============================================================
-# 16. START
+# 18. START STREAMING
 # ============================================================
 
 print()
 print("=" * 100)
-print("STARTING LSTM REAL-TIME INFERENCE")
+
+print(
+    "STARTING LSTM REAL-TIME INFERENCE"
+)
+
 print("=" * 100)
 
 print(
-    f"Input topic      : {INPUT_TOPIC}"
+    f"Input topic      : "
+    f"{INPUT_TOPIC}"
 )
 
 print(
-    f"Output topic     : {OUTPUT_TOPIC}"
+    f"Output topic     : "
+    f"{OUTPUT_TOPIC}"
 )
 
 print(
-    f"Sequence         : {SEQ_LEN}"
+    f"Sequence         : "
+    f"{SEQ_LEN} previous transactions"
 )
 
 print(
-    f"Features         : {NUM_FEATURES}"
+    f"Features         : "
+    f"{NUM_FEATURES}"
 )
 
 print(
-    f"Threshold        : {THRESHOLD}"
+    f"Threshold        : "
+    f"{THRESHOLD}"
 )
 
 print(
-    "Padding          : LEFT ZERO PADDING"
+    "Padding           : LEFT-ZERO-PAD"
+)
+
+print(
+    "Current TX in X  : NO"
+)
+
+print(
+    "Prediction       : "
+    "EVERY TX (left zero-padding)"
+)
+
+print(
+    "History update   : "
+    "AFTER prediction"
 )
 
 print(
@@ -1510,4 +1931,37 @@ query = (
 )
 
 
-query.awaitTermination()
+# ============================================================
+# WAIT FOR END MARKER / COMPLETION
+# ============================================================
+
+print()
+print("=" * 100)
+
+print(
+    "[READY] LSTM_INFERENCE - "
+    f"listening to topic '{INPUT_TOPIC}'"
+)
+
+print("=" * 100)
+
+
+while (
+    query.isActive
+    and not END_RECEIVED
+):
+
+    time.sleep(1)
+
+
+query.stop()
+
+
+print()
+print("=" * 100)
+
+print(
+    "[STOPPED] LSTM_INFERENCE"
+)
+
+print("=" * 100)

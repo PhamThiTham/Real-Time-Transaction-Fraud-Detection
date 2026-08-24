@@ -1,0 +1,9 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual environments (regenerable with `python -m venv`)
+.venv/
+venv/
+env/

@@ -1,0 +1,372 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+:: loading settings :: url = jar:file:/opt/spark/jars/ivy-2.5.3.jar!/org/apache/ivy/core/settings/ivysettings.xml
+Ivy Default Cache set to: /tmp/.ivy2/cache
+The jars for the packages stored in: /tmp/.ivy2/jars
+org.apache.spark#spark-sql-kafka-0-10_2.13 added as a dependency
+:: resolving dependencies :: org.apache.spark#spark-submit-parent-8b31c6f7-3a4e-43fc-bf8e-494c92130fe1;1.0
+	confs: [default]
+	found org.apache.spark#spark-sql-kafka-0-10_2.13;4.0.1 in spark-list
+	found org.apache.spark#spark-token-provider-kafka-0-10_2.13;4.0.1 in central
+	found org.apache.kafka#kafka-clients;3.9.1 in central
+	found org.lz4#lz4-java;1.8.0 in central
+	found org.xerial.snappy#snappy-java;1.1.10.7 in spark-list
+	found org.slf4j#slf4j-api;2.0.16 in central
+	found org.apache.hadoop#hadoop-client-runtime;3.4.1 in central
+	found org.apache.hadoop#hadoop-client-api;3.4.1 in central
+	found com.google.code.findbugs#jsr305;3.0.0 in central
+	found org.scala-lang.modules#scala-parallel-collections_2.13;1.2.0 in central
+	found org.apache.commons#commons-pool2;2.12.0 in central
+:: resolution report :: resolve 9490ms :: artifacts dl 121ms
+	:: modules in use:
+	com.google.code.findbugs#jsr305;3.0.0 from central in [default]
+	org.apache.commons#commons-pool2;2.12.0 from central in [default]
+	org.apache.hadoop#hadoop-client-api;3.4.1 from central in [default]
+	org.apache.hadoop#hadoop-client-runtime;3.4.1 from central in [default]
+	org.apache.kafka#kafka-clients;3.9.1 from central in [default]
+	org.apache.spark#spark-sql-kafka-0-10_2.13;4.0.1 from spark-list in [default]
+	org.apache.spark#spark-token-provider-kafka-0-10_2.13;4.0.1 from central in [default]
+	org.lz4#lz4-java;1.8.0 from central in [default]
+	org.scala-lang.modules#scala-parallel-collections_2.13;1.2.0 from central in [default]
+	org.slf4j#slf4j-api;2.0.16 from central in [default]
+	org.xerial.snappy#snappy-java;1.1.10.7 from spark-list in [default]
+	---------------------------------------------------------------------
+	|                  |            modules            ||   artifacts   |
+	|       conf       | number| search|dwnlded|evicted|| number|dwnlded|
+	---------------------------------------------------------------------
+	|      default     |   11  |   0   |   0   |   0   ||   11  |   0   |
+	---------------------------------------------------------------------
+:: retrieving :: org.apache.spark#spark-submit-parent-8b31c6f7-3a4e-43fc-bf8e-494c92130fe1
+	confs: [default]
+	0 artifacts copied, 11 already retrieved (0kB/117ms)
+26/08/21 04:51:24 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+
+====================================================================================================
+LSTM REAL-TIME FRAUD INFERENCE
+====================================================================================================
+Input topic       : transactions_features
+Output topic      : fraud_predictions
+Sequence length   : 5
+Number features   : 15
+Threshold         : 0.5
+Padding           : LEFT-ZERO-PAD
+Current TX in X   : NO
+Current TX added  : AFTER prediction
+
+FEATURE ORDER:
+  01. TX_AMOUNT
+  02. TX_DURING_WEEKEND
+  03. TX_DURING_NIGHT
+  04. CUSTOMER_ID_NB_TX_1DAY_WINDOW
+  05. CUSTOMER_ID_AVG_AMOUNT_1DAY_WINDOW
+  06. CUSTOMER_ID_NB_TX_7DAY_WINDOW
+  07. CUSTOMER_ID_AVG_AMOUNT_7DAY_WINDOW
+  08. CUSTOMER_ID_NB_TX_30DAY_WINDOW
+  09. CUSTOMER_ID_AVG_AMOUNT_30DAY_WINDOW
+  10. TERMINAL_ID_NB_TX_1DAY_WINDOW
+  11. TERMINAL_ID_RISK_1DAY_WINDOW
+  12. TERMINAL_ID_NB_TX_7DAY_WINDOW
+  13. TERMINAL_ID_RISK_7DAY_WINDOW
+  14. TERMINAL_ID_NB_TX_30DAY_WINDOW
+  15. TERMINAL_ID_RISK_30DAY_WINDOW
+====================================================================================================
+
+====================================================================================================
+LOADING LSTM + ATTENTION MODEL
+====================================================================================================
+Model path : /opt/spark-models/Tham_lstm_attn_checkpoint.pth
+Device     : cpu
+Model loaded successfully.
+Features  : 15
+Sequence  : 5
+Threshold : 0.5
+====================================================================================================
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+26/08/21 04:51:46 INFO SparkContext: Running Spark version 4.0.1
+26/08/21 04:51:46 INFO SparkContext: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64
+26/08/21 04:51:46 INFO SparkContext: Java version 17.0.16
+26/08/21 04:51:46 INFO ResourceUtils: ==============================================================
+26/08/21 04:51:46 INFO ResourceUtils: No custom resources configured for spark.driver.
+26/08/21 04:51:46 INFO ResourceUtils: ==============================================================
+26/08/21 04:51:46 INFO SparkContext: Submitted application: LSTMRealTimeFraudInference
+26/08/21 04:51:46 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 1, script: , vendor: , memory -> name: memory, amount: 1024, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0)
+26/08/21 04:51:46 INFO ResourceProfile: Limiting resource is cpu
+26/08/21 04:51:46 INFO ResourceProfileManager: Added ResourceProfile id: 0
+26/08/21 04:51:47 INFO SecurityManager: Changing view acls to: spark
+26/08/21 04:51:47 INFO SecurityManager: Changing modify acls to: spark
+26/08/21 04:51:47 INFO SecurityManager: Changing view acls groups to: spark
+26/08/21 04:51:47 INFO SecurityManager: Changing modify acls groups to: spark
+26/08/21 04:51:47 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: spark groups with view permissions: EMPTY; users with modify permissions: spark; groups with modify permissions: EMPTY; RPC SSL disabled
+26/08/21 04:51:48 INFO Utils: Successfully started service 'sparkDriver' on port 42789.
+26/08/21 04:51:48 INFO SparkEnv: Registering MapOutputTracker
+26/08/21 04:51:48 INFO SparkEnv: Registering BlockManagerMaster
+26/08/21 04:51:48 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+26/08/21 04:51:48 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+26/08/21 04:51:48 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+26/08/21 04:51:49 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-178653a5-829f-4521-9756-c86600c5b5ef
+26/08/21 04:51:49 INFO SparkEnv: Registering OutputCommitCoordinator
+26/08/21 04:51:50 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+26/08/21 04:51:50 WARN Utils: Service 'SparkUI' could not bind on port 4040. Attempting port 4041.
+26/08/21 04:51:50 WARN Utils: Service 'SparkUI' could not bind on port 4041. Attempting port 4042.
+26/08/21 04:51:50 WARN Utils: Service 'SparkUI' could not bind on port 4042. Attempting port 4043.
+26/08/21 04:51:50 INFO Utils: Successfully started service 'SparkUI' on port 4043.
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar at spark://b57eccda5bca:42789/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar at spark://b57eccda5bca:42789/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar at spark://b57eccda5bca:42789/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.apache.kafka_kafka-clients-3.9.1.jar at spark://b57eccda5bca:42789/jars/org.apache.kafka_kafka-clients-3.9.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/com.google.code.findbugs_jsr305-3.0.0.jar at spark://b57eccda5bca:42789/jars/com.google.code.findbugs_jsr305-3.0.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.apache.commons_commons-pool2-2.12.0.jar at spark://b57eccda5bca:42789/jars/org.apache.commons_commons-pool2-2.12.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar at spark://b57eccda5bca:42789/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.lz4_lz4-java-1.8.0.jar at spark://b57eccda5bca:42789/jars/org.lz4_lz4-java-1.8.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar at spark://b57eccda5bca:42789/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.slf4j_slf4j-api-2.0.16.jar at spark://b57eccda5bca:42789/jars/org.slf4j_slf4j-api-2.0.16.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added JAR file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar at spark://b57eccda5bca:42789/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar at file:///tmp/.ivy2/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar at file:///tmp/.ivy2/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar at file:///tmp/.ivy2/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.apache.kafka_kafka-clients-3.9.1.jar at file:///tmp/.ivy2/jars/org.apache.kafka_kafka-clients-3.9.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.apache.kafka_kafka-clients-3.9.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.kafka_kafka-clients-3.9.1.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/com.google.code.findbugs_jsr305-3.0.0.jar at file:///tmp/.ivy2/jars/com.google.code.findbugs_jsr305-3.0.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/com.google.code.findbugs_jsr305-3.0.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/com.google.code.findbugs_jsr305-3.0.0.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.apache.commons_commons-pool2-2.12.0.jar at file:///tmp/.ivy2/jars/org.apache.commons_commons-pool2-2.12.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.apache.commons_commons-pool2-2.12.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.commons_commons-pool2-2.12.0.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar at file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.lz4_lz4-java-1.8.0.jar at file:///tmp/.ivy2/jars/org.lz4_lz4-java-1.8.0.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.lz4_lz4-java-1.8.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.lz4_lz4-java-1.8.0.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar at file:///tmp/.ivy2/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.xerial.snappy_snappy-java-1.1.10.7.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.slf4j_slf4j-api-2.0.16.jar at file:///tmp/.ivy2/jars/org.slf4j_slf4j-api-2.0.16.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.slf4j_slf4j-api-2.0.16.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.slf4j_slf4j-api-2.0.16.jar
+26/08/21 04:51:51 INFO SparkContext: Added file file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar at file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:51 INFO Utils: Copying /tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-api-3.4.1.jar
+26/08/21 04:51:51 INFO SecurityManager: Changing view acls to: spark
+26/08/21 04:51:51 INFO SecurityManager: Changing modify acls to: spark
+26/08/21 04:51:51 INFO SecurityManager: Changing view acls groups to: spark
+26/08/21 04:51:51 INFO SecurityManager: Changing modify acls groups to: spark
+26/08/21 04:51:51 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: spark groups with view permissions: EMPTY; users with modify permissions: spark; groups with modify permissions: EMPTY; RPC SSL disabled
+26/08/21 04:51:52 INFO Executor: Starting executor ID driver on host b57eccda5bca
+26/08/21 04:51:52 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64
+26/08/21 04:51:52 INFO Executor: Java version 17.0.16
+26/08/21 04:51:52 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''
+26/08/21 04:51:52 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@17cc6bb6 for default.
+26/08/21 04:51:52 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.xerial.snappy_snappy-java-1.1.10.7.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/com.google.code.findbugs_jsr305-3.0.0.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/com.google.code.findbugs_jsr305-3.0.0.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/com.google.code.findbugs_jsr305-3.0.0.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.slf4j_slf4j-api-2.0.16.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.slf4j_slf4j-api-2.0.16.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.slf4j_slf4j-api-2.0.16.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.apache.kafka_kafka-clients-3.9.1.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.apache.kafka_kafka-clients-3.9.1.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.kafka_kafka-clients-3.9.1.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.lz4_lz4-java-1.8.0.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.lz4_lz4-java-1.8.0.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.lz4_lz4-java-1.8.0.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.apache.commons_commons-pool2-2.12.0.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.apache.commons_commons-pool2-2.12.0.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.commons_commons-pool2-2.12.0.jar
+26/08/21 04:51:53 INFO Executor: Fetching file:///tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO Utils: /tmp/.ivy2/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-api-3.4.1.jar
+26/08/21 04:51:53 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar with timestamp 1787287906027
+26/08/21 04:51:53 INFO TransportClientFactory: Successfully created connection to b57eccda5bca/172.19.0.4:42789 after 116 ms (0 ms spent in bootstraps)
+26/08/21 04:51:54 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.xerial.snappy_snappy-java-1.1.10.7.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp4348027656267798288.tmp
+26/08/21 04:51:54 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp4348027656267798288.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.xerial.snappy_snappy-java-1.1.10.7.jar
+26/08/21 04:51:54 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.xerial.snappy_snappy-java-1.1.10.7.jar to class loader default
+26/08/21 04:51:54 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.apache.commons_commons-pool2-2.12.0.jar with timestamp 1787287906027
+26/08/21 04:51:54 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.apache.commons_commons-pool2-2.12.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp3135336831907993860.tmp
+26/08/21 04:51:54 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp3135336831907993860.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.commons_commons-pool2-2.12.0.jar
+26/08/21 04:51:54 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.commons_commons-pool2-2.12.0.jar to class loader default
+26/08/21 04:51:54 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:54 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp10021396259805256478.tmp
+26/08/21 04:51:54 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp10021396259805256478.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar
+26/08/21 04:51:54 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-runtime-3.4.1.jar to class loader default
+26/08/21 04:51:54 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar with timestamp 1787287906027
+26/08/21 04:51:54 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.apache.hadoop_hadoop-client-api-3.4.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp988020134998407774.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp988020134998407774.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-api-3.4.1.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.hadoop_hadoop-client-api-3.4.1.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.lz4_lz4-java-1.8.0.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.lz4_lz4-java-1.8.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp4454778354494673780.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp4454778354494673780.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.lz4_lz4-java-1.8.0.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.lz4_lz4-java-1.8.0.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.apache.kafka_kafka-clients-3.9.1.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.apache.kafka_kafka-clients-3.9.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp3320894228166665424.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp3320894228166665424.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.kafka_kafka-clients-3.9.1.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.kafka_kafka-clients-3.9.1.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/com.google.code.findbugs_jsr305-3.0.0.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/com.google.code.findbugs_jsr305-3.0.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp17401514091999977946.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp17401514091999977946.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/com.google.code.findbugs_jsr305-3.0.0.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/com.google.code.findbugs_jsr305-3.0.0.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp10029074602854084205.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp10029074602854084205.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.scala-lang.modules_scala-parallel-collections_2.13-1.2.0.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp8597394349711447204.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp8597394349711447204.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-token-provider-kafka-0-10_2.13-4.0.1.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.slf4j_slf4j-api-2.0.16.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.slf4j_slf4j-api-2.0.16.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp17806871027314918850.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp17806871027314918850.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.slf4j_slf4j-api-2.0.16.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.slf4j_slf4j-api-2.0.16.jar to class loader default
+26/08/21 04:51:55 INFO Executor: Fetching spark://b57eccda5bca:42789/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar with timestamp 1787287906027
+26/08/21 04:51:55 INFO Utils: Fetching spark://b57eccda5bca:42789/jars/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp16500622596078768075.tmp
+26/08/21 04:51:55 INFO Utils: /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/fetchFileTemp16500622596078768075.tmp has been previously copied to /tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar
+26/08/21 04:51:55 INFO Executor: Adding file:/tmp/spark-a8355f2c-c040-4b67-93f1-483eb3acfcbe/userFiles-79c9d5cc-2d09-45b6-ac36-44a39c616005/org.apache.spark_spark-sql-kafka-0-10_2.13-4.0.1.jar to class loader default
+26/08/21 04:51:55 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 44909.
+26/08/21 04:51:55 INFO NettyBlockTransferService: Server created on b57eccda5bca:44909
+26/08/21 04:51:55 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+26/08/21 04:51:56 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, b57eccda5bca, 44909, None)
+26/08/21 04:51:56 INFO BlockManagerMasterEndpoint: Registering block manager b57eccda5bca:44909 with 434.4 MiB RAM, BlockManagerId(driver, b57eccda5bca, 44909, None)
+26/08/21 04:51:56 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, b57eccda5bca, 44909, None)
+26/08/21 04:51:56 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, b57eccda5bca, 44909, None)
+
+====================================================================================================
+STARTING LSTM REAL-TIME INFERENCE
+====================================================================================================
+Input topic      : transactions_features
+Output topic     : fraud_predictions
+Sequence         : 5 previous transactions
+Features         : 15
+Threshold        : 0.5
+Padding           : LEFT-ZERO-PAD
+Current TX in X  : NO
+Prediction       : EVERY TX (left zero-padding)
+History update   : AFTER prediction
+Latency metrics  : Prediction + End-to-End
+Statistics       : Average / P50 / P95 / P99
+====================================================================================================
+26/08/21 04:52:23 WARN ResolveWriteToStream: spark.sql.adaptive.enabled is not supported in streaming DataFrames/Datasets and will be disabled.
+
+====================================================================================================
+[READY] LSTM_INFERENCE - listening to topic 'transactions_features'
+====================================================================================================
+
+====================================================================================================
+LSTM INFERENCE - BATCH ID = 0
+====================================================================================================
+EMPTY BATCH
+
+====================================================================================================
+LSTM INFERENCE - BATCH ID = 1
+====================================================================================================
+ROWS = 11
+
+BATCHED INFERENCE : 11 sample(s) -> 77.090 ms (7.008 ms/tx)
+
+====================================================================================================
+PREDICTION LATENCY - CURRENT BATCH
+====================================================================================================
+Samples : 11
+Average : 77.090 ms
+P50     : 77.090 ms
+P95     : 77.090 ms
+P99     : 77.090 ms
+====================================================================================================
+
+====================================================================================================
+END-TO-END LATENCY - CURRENT BATCH
+====================================================================================================
+Samples : 11
+Average : 33834.634 ms
+P50     : 33841.699 ms
+P95     : 33848.681 ms
+P99     : 33852.887 ms
+====================================================================================================
+
+====================================================================================================
+PREDICTION LATENCY - CUMULATIVE
+====================================================================================================
+Samples : 11
+Average : 77.090 ms
+P50     : 77.090 ms
+P95     : 77.090 ms
+P99     : 77.090 ms
+====================================================================================================
+
+====================================================================================================
+END-TO-END LATENCY - CUMULATIVE
+====================================================================================================
+Samples : 11
+Average : 33834.634 ms
+P50     : 33841.699 ms
+P95     : 33848.681 ms
+P99     : 33852.887 ms
+====================================================================================================
+26/08/21 04:53:33 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+
+WROTE 11 PREDICTION(S) TO fraud_predictions
+
+====================================================================================================
+[BATCH DONE] LSTM_INFERENCE - batch 1: processed 11 transactions -> fraud_predictions
+====================================================================================================
+
+====================================================================================================
+LSTM INFERENCE - BATCH ID = 2
+====================================================================================================
+ROWS = 2989
+
+BATCHED INFERENCE : 2989 sample(s) -> 1025.451 ms (0.343 ms/tx)
+
+====================================================================================================
+PREDICTION LATENCY - CURRENT BATCH
+====================================================================================================
+Samples : 2989
+Average : 1025.451 ms
+P50     : 1025.451 ms
+P95     : 1025.451 ms
+P99     : 1025.451 ms
+====================================================================================================
+
+====================================================================================================
+END-TO-END LATENCY - CURRENT BATCH
+====================================================================================================
+Samples : 2989
+Average : 61218.382 ms
+P50     : 61218.687 ms
+P95     : 63911.239 ms
+P99     : 64081.451 ms
+====================================================================================================
+
+====================================================================================================
+PREDICTION LATENCY - CUMULATIVE
+====================================================================================================
+Samples : 3000
+Average : 1021.973 ms
+P50     : 1025.451 ms
+P95     : 1025.451 ms
+P99     : 1025.451 ms
+====================================================================================================
+
+====================================================================================================
+END-TO-END LATENCY - CUMULATIVE
+====================================================================================================
+Samples : 3000
+Average : 61117.974 ms
+P50     : 61211.067 ms
+P95     : 63910.412 ms
+P99     : 64081.408 ms
+====================================================================================================
+
+WROTE 2989 PREDICTION(S) TO fraud_predictions
+
+====================================================================================================
+[BATCH DONE] LSTM_INFERENCE - batch 2: processed 2989 transactions -> fraud_predictions
+====================================================================================================
+END MARKER WROTE TO TOPIC fraud_predictions
+
+====================================================================================================
+[ALL DONE] LSTM_INFERENCE
+====================================================================================================
+26/08/21 04:54:11 WARN DAGScheduler: Failed to cancel job group ed13c75a-9f36-4c9e-81ae-e9ad63ab7f29. Cannot find active jobs for it.
+
+====================================================================================================
+[STOPPED] LSTM_INFERENCE
+====================================================================================================
+26/08/21 04:54:11 WARN DAGScheduler: Failed to cancel job group ed13c75a-9f36-4c9e-81ae-e9ad63ab7f29. Cannot find active jobs for it.
