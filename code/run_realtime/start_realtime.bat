@@ -25,7 +25,7 @@ start "03 - Feature Engineering" cmd /k "cd /d D:\ThucTap_VinSmartFuture\run_rea
 timeout /t 5 /nobreak >nul
 
 echo [5/6] Starting Kafka transaction producer...
-start "02 - Kafka Producer" cmd /k "cd /d D:\ThucTap_VinSmartFuture\run_realtime\producer && python transaction_producer.py --rate 50 --limit 500000 --print-every 1000"
+start "02 - Kafka Producer" cmd /k "cd /d D:\ThucTap_VinSmartFuture\run_realtime\producer && python transaction_producer.py --rate 10 --limit 500000 --print-every 1000"
 
 echo [6/6] Starting Evaluate CPU/RAM...
 start "01 - Evaluate CPU/RAM" cmd /k "cd /d D:\ThucTap_VinSmartFuture\run_realtime\evaluate && python monitor_resources.py --duration 300 --interval 1"
